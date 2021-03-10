@@ -26,6 +26,9 @@
 
 ;;; Code:
 
+(require 'json)
+(require 'projectile)
+
 (defvar sharp-port "8080"
   "Port of the lps server.")
 
@@ -45,6 +48,20 @@ MSG - message"
     (message (format "Client %s has quit" proc)))
   (message "Updated state"))
 
+(defun sharp-message-object (id jsonrpc method &optional params)
+  "Make message object as json, return string object type.
+ID - id of message
+JSONRPC - version of jsonrpc
+METHOD - requset method
+&OPTIONAL PARAMS - additional paramenters for message, should look like `((param . ,\"object\"))"
+  (json-encode `((id . ,id) (jsonrpc . ,jsonrpc) (method . ,method) (params . ,params))))
+
+(defun sharp-message-init (id root-path)
+  "Send init message to server.
+ID - id of message
+ROOT-PATH - project root"
+  (process-send-string sharp-lsp-process (sharp-message-object id "2.0" "init" `((root-Uri . ,root-path)))))
+
 (defun sharp-lsp-start ()
   "Start sharp lsp server."
   (interactive)
@@ -52,7 +69,10 @@ MSG - message"
                         :host sharp-address
                         :service sharp-port
                         :buffer sharp-buffer-name
-                        :sentinel #'sharp-lsp-sentinel))
+                        :sentinel #'sharp-lsp-sentinel)
+
+  ;; FIX: buffer-file-name don't return path
+  (sharp-message-init 1 #'projectile-project-root))
 
 (defun sharp-lsp-stop ()
   "Stop sharp lsp server."
@@ -61,3 +81,4 @@ MSG - message"
 
 (provide 'sharp-lsp)
 ;;; sharp-lsp.el ends here
+
