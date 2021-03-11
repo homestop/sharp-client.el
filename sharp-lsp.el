@@ -56,12 +56,15 @@ METHOD - requset method
 &OPTIONAL PARAMS - additional paramenters for message, should look like `((param . ,\"object\"))"
   (json-encode `((id . ,id) (jsonrpc . ,jsonrpc) (method . ,method) (params . ,params))))
 
-(defun sharp-message-init (id root-path)
+(defun sharp-message-init (id &optional root-path)
   "Send init message to server.
 ID - id of message
-ROOT-PATH - project root"
-  (process-send-string sharp-lsp-process (sharp-message-object id "2.0" "init" `((root-Uri . ,root-path)))))
-
+&OPTIONAL ROOT-PATH - project root"
+  (let ((path (unless root-path (projectile-project-root))))
+    (if (eq path nil) (path root-path))
+    (process-send-string sharp-lsp-process
+                         (sharp-message-object id "2.0" "initialize"
+                                               `((rootPath . ,path))))))
 (defun sharp-lsp-start ()
   "Start sharp lsp server."
   (interactive)
@@ -70,9 +73,7 @@ ROOT-PATH - project root"
                         :service sharp-port
                         :buffer sharp-buffer-name
                         :sentinel #'sharp-lsp-sentinel)
-
-  ;; FIX: buffer-file-name don't return path
-  (sharp-message-init 1 #'projectile-project-root))
+  (sharp-message-init 1 projectile-project-root))
 
 (defun sharp-lsp-stop ()
   "Stop sharp lsp server."
