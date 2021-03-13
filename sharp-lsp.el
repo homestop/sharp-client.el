@@ -29,16 +29,18 @@
 (require 'json)
 (require 'projectile)
 
-(defvar sharp-port "8080"
+(defvar sharp-server-port "8080"
   "Port of the lps server.")
 
-(defvar sharp-address "192.168.0.100"
+(defvar sharp-server-address "192.168.0.100"
   "IP address of the lsp server.")
 
-(defvar sharp-lsp-process "sharp-lsp-process"
+(defvar sharp-process-name "sharp-lsp-process"
   "Name of process.")
 
 (defvar sharp-buffer-name "*sharp-lsp*")
+
+(defvar jsonrpc-version "2.0")
 
 (defun sharp-lsp-sentinel(proc msg)
   "Call 'when make-network-process' status was changed.
@@ -48,38 +50,55 @@ MSG - message"
     (message (format "Client %s has quit" proc)))
   (message "Updated state"))
 
-(defun sharp-message-object (id jsonrpc method &optional params)
+(defun sharp-message-object (id method &optional params)
   "Make message object as json, return string object type.
 ID - id of message
-JSONRPC - version of jsonrpc
 METHOD - requset method
 &OPTIONAL PARAMS - additional paramenters for message, should look like `((param . ,\"object\"))"
-  (json-encode `((id . ,id) (jsonrpc . ,jsonrpc) (method . ,method) (params . ,params))))
+  (json-encode `((id . ,id) (jsonrpc . ,jsonrpc-version) (method . ,method) (params . ,params))))
 
-(defun sharp-message-init (id &optional root-path)
+(defun sharp-send-message (msg-obj)
+  "Wrapper for 'process-send-string'.
+MSG-OBJ - type of message like 'sharp-message-object'"
+  (process-send-string sharp-process-name msg-obj))
+
+(defun sharp-message-initialize (id &optional root-path)
   "Send init message to server.
 ID - id of message
 &OPTIONAL ROOT-PATH - project root"
   (let ((path (unless root-path (projectile-project-root))))
     (if (eq path nil) (path root-path))
-    (process-send-string sharp-lsp-process
-                         (sharp-message-object id "2.0" "initialize"
-                                               `((rootPath . ,path))))))
-(defun sharp-lsp-start ()
-  "Start sharp lsp server."
+    (sharp-send-message (sharp-message-object id "initialize"
+                                             `((rootPath . ,path))))))
+(defun sharp-message-textDocument/didOpen ()
+  "Send textDocument/didOpen to server."
   (interactive)
-  (make-network-process :name sharp-lsp-process
-                        :host sharp-address
-                        :service sharp-port
-                        :buffer sharp-buffer-name
-                        :sentinel #'sharp-lsp-sentinel)
-  (sharp-message-init 1 projectile-project-root))
+  (sharp-send-message (sharp-message-object 1 "textDocument/didOpen"
+                                            `((path . ,buffer-file-name)))))
+(defun sharp--session-start ()
+  "Start sharp lsp server session."
+  (make-network-process :name sharp-process-name
+                        :host sharp-server-address
+                        :service sharp-server-port
+                        :buffer sharp-buffer-name))
 
-(defun sharp-lsp-stop ()
-  "Stop sharp lsp server."
-  (interactive)
-  (delete-process sharp-lsp-process))
+(defun sharp--sesstion-stop ()
+  "Stop sharp lsp server session."
+  (delete-process sharp-process-name))
+
+(defun sharp-start-client ()
+  "Start sharp client."
+  (sharp--session-start)
+  (sharp-message-initialize 1 projectile-project-root))
+
+;;;###autoload
+(define-minor-mode sharp-lsp-mode
+  "Sharp lsp client mode"
+  :lighter " Started sharp-lsp-mode"
+  (if sharp-lsp-mode
+      (progn
+        (add-hook 'sharp-lsp-mode-hook #'sharp-start-client nil t))
+    (remove-hook 'sharp-lsp-mode-hook #'sharp-start-client t)))
 
 (provide 'sharp-lsp)
 ;;; sharp-lsp.el ends here
-
