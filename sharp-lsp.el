@@ -75,6 +75,16 @@ ID - id of message
   (interactive)
   (sharp-send-message (sharp-message-object 1 "textDocument/didOpen"
                                             `((path . ,buffer-file-name)))))
+
+(defconst sharp-completion-keywords '("using" "class" "System"))
+(defun sharp-message-textDocument/completion ()
+  "This is."
+  (interactive)
+  (let* ((bounds (bounds-of-thing-at-point 'symbol))
+         (start (max (car bounds) (comint-line-beginning-position)))
+         (end (cdr bounds)))
+    (list start end sharp-completion-keywords . nil)))
+
 (defun sharp--session-start ()
   "Start sharp lsp server session."
   (make-network-process :name sharp-process-name
@@ -88,8 +98,10 @@ ID - id of message
 
 (defun sharp-start-client ()
   "Start sharp client."
+  (interactive)
   (sharp--session-start)
-  (sharp-message-initialize 1 projectile-project-root))
+  (sharp-message-initialize 1 projectile-project-root)
+  (sharp-message-textDocument/didOpen))
 
 ;;;###autoload
 (define-minor-mode sharp-lsp-mode
@@ -97,8 +109,10 @@ ID - id of message
   :lighter " Started sharp-lsp-mode"
   (if sharp-lsp-mode
       (progn
-        (add-hook 'sharp-lsp-mode-hook #'sharp-start-client nil t))
-    (remove-hook 'sharp-lsp-mode-hook #'sharp-start-client t)))
+        (add-hook 'sharp-lsp-mode-hook #'sharp-start-client nil t)
+        (add-hook 'completion-at-point-functions #'sharp-message-textDocument/completion nil t))
+    (remove-hook 'sharp-lsp-mode-hook #'sharp-start-client t)
+    (remove-hook 'completion-at-point-functions #'sharp-message-textDocument/completion t)))
 
 (provide 'sharp-lsp)
 ;;; sharp-lsp.el ends here
