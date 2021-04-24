@@ -78,18 +78,25 @@ ID - id of message
 
 (defconst sharp-completion-keywords '("using" "class" "System"))
 (defun sharp-message-textDocument/completion ()
-  "This is."
   (interactive)
   (let* ((bounds (bounds-of-thing-at-point 'symbol))
          (start (max (car bounds) (comint-line-beginning-position)))
          (end (cdr bounds)))
     (list start end sharp-completion-keywords . nil)))
 
+(defun sharp-language--filter (proc msg)
+  "Listen responce from server."
+  (cond ((string= msg "initialize") (message "from sharp language filter : initialize"))
+
+        
+        ((string= msg "") (message ""))))
+
 (defun sharp--session-start ()
   "Start sharp lsp server session."
   (make-network-process :name sharp-process-name
                         :host sharp-server-address
                         :service sharp-server-port
+                        :filter 'sharp-language--filter
                         :buffer sharp-buffer-name))
 
 (defun sharp--sesstion-stop ()
